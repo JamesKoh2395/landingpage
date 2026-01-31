@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Matching Game1</title>
+    <!-- Load Tailwind CSS for styling --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the game grid and tiles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .game-grid {
+            display: grid;
+            gap: 1rem; /* Space between tiles */
+        }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            background-color: #e0f2fe; /* Light blue back */
+            color: #3b82f6; /* Blue icon color */
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            user-select: none;
+        }
+
+        .card.flipped {
+            background-color: #ffffff; /* White when flipped */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            transform: scale(1.05);
+        }
+
+        .card.matched {
+            background-color: #d1fae5; /* Green for matched */
+            color: #059669; /* Darker green */
+            cursor: default;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card.disabled {
+            pointer-events: none; /* Disable clicking during match check */
+        }
+
+        .card-icon {
+            opacity: 0;
+            transform: scale(0.5);
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+
+        .card.flipped .card-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+    </style>
+    <script>
+        const symbols = ['🍎', '🍌', '🍇', '🍓', '🍋', '🥝', '🍉', '🍍']; // 8 unique symbols
+        let gameBoard = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let totalPairs = symbols.length;
+        let moves = 0;
+        let gameActive = false;
+        let gameGridElement;
+        let movesDisplayElement;
+        let modalOverlayElement;
+        let modalMessageElement;
+        let restartButtonElement;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function createBoard() {
+            const pairedSymbols = [...symbols, ...symbols]; // Duplicate symbols for pairs
+            gameBoard = shuffle(pairedSymbols);
+
+            gameGridElement.innerHTML = ''; // Clear previous board
+            gameGridElement.style.gridTemplateColumns = `repeat(${Math.sqrt(gameBoard.length)}, 1fr)`; // Dynamic grid size
+
+            gameBoard.forEach((symbol, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.classList.add('card', 'flex', 'items-center', 'justify-center', 'text-5xl', 'bg-blue-200', 'hover:bg-blue-300', 'active:bg-blue-400');
+                cardElement.dataset.index = index;
+                cardElement.dataset.symbol = symbol;
+
+                const iconElement = document.createElement('span');
+                iconElement.classList.add('card-icon');
+                iconElement.textContent = symbol;
+
+                cardElement.appendChild(iconElement);
+                cardElement.addEventListener('click', handleCardClick);
+                gameGridElement.appendChild(cardElement);
+            });
+        }
+
+        function handleCardClick(event) {
+            if (!gameActive || flippedCards.length === 2 || event.currentTarget.classList.contains('flipped') || event.currentTarget.classList.contains('matched')) {
+                return; // Ignore if game not active, two cards already flipped, or card already flipped/matched
+            }
+
+            const clickedCard = event.currentTarget;
+            clickedCard.classList.add('flipped', 'disabled'); // Add disabled to prevent double-click during flip
+
+            flippedCards.push(clickedCard);
+
+            if (flippedCards.length === 2) {
+                moves++;
+                movesDisplayElement.textContent = moves;
+                checkForMatch();
+            }
+        }
+
+        function checkForMatch() {
+            const [card1, card2] = flippedCards;
+
+            if (card1.dataset.symbol === card2.dataset.symbol) {
+                // Match found
+                setTimeout(() => {
+                    card1.classList.add('matched');
+                    card2.classList.add('matched');
+                    card1.classList.remove('disabled'); // Re-enable if needed for some reason, but matched cards are ignored
+                    card2.classList.remove('disabled');
+
+                    matchedPairs++;
+                    flippedCards = [];
+
+                    if (matchedPairs === totalPairs) {
+                        endGame(true); // Game over, all matched
+                    }
+                }, 700); // Keep cards flipped for a bit
+            } else {
+                // No match
+                setTimeout(() => {
+                    card1.classList.remove('flipped', 'disabled');
+                    card2.classList.remove('flipped', 'disabled');
+                    flippedCards = [];
+                }, 1000); // Flip back after a second
+            }
+        }
+
+        function startGame() {
+            gameActive = true;
+            flippedCards = [];
+            matchedPairs = 0;
+            moves = 0;
+            movesDisplayElement.textContent = moves;
+            modalOverlayElement.classList.add('hidden');
+            createBoard();
+        }
+
+        function endGame(won) {
+            gameActive = false;
+            let message = '';
+            if (won) {
+                message = `Congratulations! You matched all pairs in ${moves} moves!`;
+                modalMessageElement.classList.remove('text-red-600');
+                modalMessageElement.classList.add('text-green-600');
+            } else {
+                message = "Game Over! You quit.";
+                modalMessageElement.classList.remove('text-green-600');
+                modalMessageElement.classList.add('text-red-600');
+            }
+            modalMessageElement.textContent = message;
+            modalOverlayElement.classList.remove('hidden');
+        }
+
+        window.onload = function() {
+            gameGridElement = document.getElementById('game-grid');
+            movesDisplayElement = document.getElementById('moves-display');
+            modalOverlayElement = document.getElementById('game-modal-overlay');
+            modalMessageElement = document.getElementById('modal-message');
+            restartButtonElement = document.getElementById('restart-button');
+
+            restartButtonElement.addEventListener('click', startGame);
+
+            // Initial game setup
+            startGame();
+        };
+    </script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main Game Container --><div class="w-full max-w-2xl bg-white shadow-2xl rounded-xl p-6 space-y-6">
+        <h1 class="text-3xl font-extrabold text-gray-800 text-center">
+            🧠 Memory Match Game
+        </h1>
+        <p class="text-center text-gray-500">
+            Flip cards to find matching pairs!
+        </p>
+
+        <!-- Stats Bar --><div class="flex justify-between items-center bg-blue-50 p-3 rounded-lg shadow-inner">
+            <div class="text-center">
+                <span class="text-lg font-semibold text-gray-700">Moves:</span>
+                <span id="moves-display" class="text-4xl font-bold text-blue-600 ml-2">0</span>
+            </div>
+            <button onclick="endGame(false)" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-150 shadow-md">
+                Quit Game
+            </button>
+        </div>
+
+        <!-- Game Grid --><div id="game-grid" class="game-grid w-full aspect-square bg-gray-100 rounded-xl p-4 shadow-inner">
+            <!-- Cards will be dynamically inserted here by JavaScript --></div>
+    </div>
+
+    <!-- Game Over/Win Modal (Initially hidden) --><div id="game-modal-overlay" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full text-center">
+            <h2 class="text-4xl font-extrabold text-green-600 mb-2">Game Complete!</h2>
+            <p id="modal-message" class="text-gray-700 text-lg mb-6"></p>
+            
+            <button id="restart-button" 
+                    class="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold text-xl hover:bg-blue-600 transition duration-150 shadow-md">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+</body>
+</html>
